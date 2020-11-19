@@ -1,0 +1,108 @@
+---
+title: "Flowchart"
+output:
+  html_document:
+    code_folding: hide
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, comment = FALSE, 
+                      cache.lazy = FALSE)
+```
+## Flowchart
+
+```{r libray, echo=FALSE}
+library(dplyr)
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(rsvg)
+```
+```{r data}
+#detach("package:DiagrammeRsvg", unload=TRUE)
+load("~/1 data prep/exclusion.RData")
+load("~/1 data prep/working data.RData")
+
+
+exclusion_table$N_current<-as.numeric(exclusion_table$N_current)
+col = c(exclusion_table$N_current[-1])
+exclusion_table<-exclusion_table%>%mutate(excluded=c(0,N_current-col)[-14])
+
+a<-covid.data%>%
+  filter(!is.na(bmi.all_time))%>%
+  filter(!is.na(smoke.all_time))%>%
+  filter(!is.na(medea))
+
+
+b<-covid.data%>%
+  filter(!is.na(bmi.all_time))%>%
+  filter(is.na(medea)| is.na(smoke.all_time))
+
+
+exclusion_table<-rbind(exclusion_table,
+                       c(nrow(a),
+                         "Without information on smoking status or the MEDEA deprivation index",nrow(b)))
+
+exclusion_table$N_current<-as.numeric(exclusion_table$N_current)
+exclusion_table$excluded<-as.numeric(exclusion_table$excluded)
+```
+
+```{r flow}
+flow1 <- grViz("
+digraph a_nice_graph
+      {
+      
+      node [fontname = Helvetica, shape = box, color = black, penwidth = 1.5, style = lisrel]
+      '@@1';'@@2';'@@3';'@@4';'@@5';'@@6';'@@7';'@@8';'@@9';'@@10';
+       node [fontname = Helvetica, shape = box, color = '#FF8700', penwidth = 1.5, style = lisrel]
+      '@@11';
+      
+      blank1[label = '', width = 0.01, height = 0.01]
+      blank2[label = '', width = 0.01, height = 0.01]
+      blank3[label = '', width = 0.01, height = 0.01]
+      blank4[label = '', width = 0.01, height = 0.01]
+      blank5[label = '', width = 0.01, height = 0.01]
+     
+
+    
+      '@@1' -> blank1[ dir = none ];
+      blank1 -> '@@2'[ minlen = 0 ,arrowhead = none, tailport = T];
+      blank1 -> '@@3' ;  
+      '@@3' -> blank2[dir = none];
+      blank2 -> '@@4'[ minlen = 0 ,arrowhead = none, tailport = T];
+      blank2 -> '@@5';
+      '@@5' -> blank3[dir = none];
+      blank3 -> '@@6'[ minlen = 0 ,arrowhead = none, tailport = T];
+      blank3 -> '@@7'
+      '@@7' -> blank4[dir = none];
+      blank4 -> '@@8'[ minlen = 0 ,arrowhead = none, tailport = T];
+      blank4 -> '@@9'
+      '@@9' -> blank5[dir = none];
+      blank5 -> '@@10'[ minlen = 0 ,arrowhead = none, tailport = T];
+      blank5 -> '@@11'
+      
+    
+      
+      }
+      [1]: paste0('SIDIAP population aged &#8805; 18 years on 2020-03-01','\\n','N = ', format(exclusion_table$N_current[4],big.mark = ',', decimal.mark='.'))
+      [2]:  paste0(exclusion_table$exclusion_reason[5], '\\n','N = ', format(exclusion_table$excluded[5],big.mark = ',', decimal.mark='.'))
+      [3]:  paste0('Remaining population', '\\n','N = ', format(exclusion_table$N_current[5],big.mark = ',', decimal.mark='.')) 
+      [4]:  paste0('With COVID-19 diagnosis or positive test prior to 2020-03-01', ', N = ', format(exclusion_table$excluded[7]+exclusion_table$excluded[6], big.mark = ',',decimal.mark='.'), '\\n', exclusion_table$exclusion_reason[8], ', N = ', format(exclusion_table$excluded[8],big.mark = ',', decimal.mark='.'))
+      [5]:  paste0('Remaining population', '\\n','N = ', format(exclusion_table$N_current[8],big.mark = ',', decimal.mark='.')) 
+       [6]:  paste0('Hospitalised on 2020-03-01, N = ', format(exclusion_table$excluded[9],big.mark = ',', decimal.mark='.'), '\\n', 'Living in a nursing home on 2020-03-01, N = ', format(exclusion_table$excluded[10],big.mark = ',', decimal.mark='.'))
+       [7]:  paste0('Remaining population ', '\\n','N = ', format(exclusion_table$N_current[10],big.mark = ',', decimal.mark='.')) 
+       [8]:  paste0('Without BMI measurement,',' N = ', format(exclusion_table$N_current[13],big.mark = ',', decimal.mark='.'))
+      [9]:  paste0('Remaining population', '\\n','N = ', format(exclusion_table$N_current[12],big.mark = ',', decimal.mark='.')) 
+      [10]:  paste0(exclusion_table$exclusion_reason[14], '\\n','N = ', format(exclusion_table$excluded[14],big.mark = ',', decimal.mark='.'))
+       [11]:  paste0('Remaining population ', '\\n','N = ', format(exclusion_table$N_current[14],big.mark = ',', decimal.mark='.')) 
+      ", width = 400,height = 1200)
+flow1
+flow1%>% export_svg %>% charToRaw %>% rsvg %>% png::writePNG("flowchart.png")
+
+```
