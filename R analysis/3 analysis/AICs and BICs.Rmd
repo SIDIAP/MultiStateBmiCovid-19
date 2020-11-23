@@ -1,0 +1,555 @@
+---
+title: 'AICs and BICs for selecting models'
+output:
+  html_document:
+    code_folding: hide
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, comment = FALSE, 
+                      cache.lazy = FALSE)
+options(scipen=999)
+options(knitr.kable.NA = '')
+```
+
+```{r package, include=FALSE}
+# package -----
+library(kableExtra)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(rms)
+library(stargazer)
+library(ggstance)
+library(stringr)
+library(knitr)
+library(purrr)
+```
+
+```{r data, include=FALSE}
+
+
+load("1 data prep/working data.RData")
+
+
+# to all variable in the environment, group age, select complete cases, group obesity
+
+e<-eapply(.GlobalEnv, function(x) {
+  x<-x%>%
+    filter(!is.na(bmi.all_time_gr))%>%
+    mutate(age_gr.b= ifelse(age<=59, "Aged 18 to 59",
+                            ifelse(age<=79, "Aged 60 to 79",
+                                   "Aged 80 or above" ))) %>%
+    mutate(age_gr.b = factor(age_gr.b, levels = c("Aged 18 to 59", "Aged 60 to 79","Aged 80 or above"))) %>%
+    filter(!is.na(smoke.all_time))%>%
+    mutate(smoke.all_time=factor(smoke.all_time))%>%
+    mutate(smoke.all_time=relevel(smoke.all_time, "Never smoker"))%>%
+    filter(!is.na(medea))%>%
+    mutate(medea=relevel(medea, "U1"))%>%
+    droplevels()
+  levels(x$bmi.all_time_gr)<-list("normal or underweight"="normal or underweight",
+                                  "overweight" ="overweight",
+                                  "obese"=c("obese class I", "obese class II", "obese class III"))
+  output <- x
+}
+)
+
+nms <- names(e)
+for ( n in nms ){
+  assign(n, e[[n]])
+}
+
+#load functions
+source("functions_hazardratio.R") 
+
+```
+
+
+
+```{r, cache=TRUE}
+# get models -----
+
+models.healthy.diagnosis<-get.models(r.healthy.diagnosis, "healthy.diagnosis")
+models.healthy.hospitalised<-get.models(r.healthy.hospitalised, "healthy.hospitalised")
+models.diagnosis.hospitalised<-get.models(r.diagnosis.hospitalised, "diagnosis.hospitalised")
+models.diagnosis.death<-get.models(r.diagnosis.death, "diagnosis.death")
+models.hospitalised.death<-get.models(r.hospitalised.death, "hospitalised.death")
+
+```
+
+# Transition 1: From general population to diagnosed with COVID-19 
+```{r}
+# models and relative hazards from models -----
+r.hazard<-get.r.hazard(model=models.healthy.diagnosis,
+                       bmi.1=22,
+                       bmi.2=seq(15,60, 1)) 
+
+```
+
+## Principal analysis
+```{r}
+fit<-fit.fun(r.hazard)
+
+fit<-fit %>%
+  pivot_wider(names_from = name, 
+              values_from = c(aic,bic)) 
+fit<-fit %>%
+  select(type ,       
+         aic_overall.bmi.only, bic_overall.bmi.only,
+         aic_overall.bmi.age.gender,bic_overall.bmi.age.gender,
+         aic_overall.bmi.complete, bic_overall.bmi.complete,
+         
+         aic_firstage.bmi.only, bic_firstage.bmi.only,
+         aic_firstage.bmi.age.gender,bic_firstage.bmi.age.gender,
+         aic_firstage.bmi.complete, bic_firstage.bmi.complete,
+         
+         aic_secondage.bmi.only, bic_secondage.bmi.only,
+         aic_secondage.bmi.age.gender,bic_secondage.bmi.age.gender,
+         aic_secondage.bmi.complete, bic_secondage.bmi.complete,
+         
+         aic_thirdage.bmi.only, bic_thirdage.bmi.only,
+         aic_thirdage.bmi.age.gender,bic_thirdage.bmi.age.gender,
+         aic_thirdage.bmi.complete, bic_thirdage.bmi.complete,
+         
+         aic_female.bmi.only, bic_female.bmi.only,
+         aic_female.bmi.age.gender,bic_female.bmi.age.gender,
+         aic_female.bmi.complete, bic_female.bmi.complete,
+         
+         aic_male.bmi.only, bic_male.bmi.only,
+         aic_male.bmi.age.gender,bic_male.bmi.age.gender,
+         aic_male.bmi.complete, bic_male.bmi.complete
+  )
+
+kable(fit %>% 
+        mutate(type=ifelse(type=="rcs3",
+                           "restricted cubic spline (3 knots)",
+                           ifelse(type=="rcs4",
+                                  "restricted cubic spline (4 knots)",
+                                  ifelse(type=="rcs5",
+                                         "restricted cubic spline (5 knots)",      
+                                         type)))), 
+      col.names = c("Type",  
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC"))  %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))  %>%
+  add_header_above( c("",
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2
+                      
+  ))  %>%
+  add_header_above( c("",
+                      "Overall" = 6,
+                      "Aged 18 to 59" = 6,
+                      "Aged 60 to 79" = 6,
+                      "Aged 80 or above"=6,
+                      "Female" = 6,
+                      "Male" = 6))%>%
+  add_header_above(
+    c("From general population to diagnosed with COVID-19" = 37))
+```
+
+## Secondary analysis
+### Stratifying for month
+```{r}
+fit<-rbind(
+  #march - complete
+  r.hazard %>% 
+    filter(str_detect(model, ".march")) %>% 
+    filter(str_detect(model, ".bmi.complete")) %>% 
+    select(model, aic, bic) %>% 
+    distinct() %>% 
+    mutate(bic=nice.num(bic)) %>% 
+    mutate(aic=nice.num(aic)) %>% 
+    mutate(type=str_extract(model, paste(c("linear", "quadratic", "rcs3", "rcs4", "rcs5"), collapse="|"))) %>% 
+    select(type, aic, bic) %>% 
+    mutate(name="march.bmi.complete"),
+  
+  #april - complete
+  r.hazard %>% 
+    filter(str_detect(model, ".april")) %>% 
+    filter(str_detect(model, ".bmi.complete")) %>% 
+    select(model, aic, bic) %>% 
+    distinct() %>% 
+    mutate(bic=nice.num(bic)) %>% 
+    mutate(aic=nice.num(aic)) %>% 
+    mutate(type=str_extract(model, paste(c("linear", "quadratic", "rcs3", "rcs4", "rcs5"), collapse="|"))) %>% 
+    select(type, aic, bic) %>% 
+    mutate(name="april.bmi.complete"))
+
+fit<-fit %>%
+  pivot_wider(names_from = name, 
+              values_from = c(aic,bic)) 
+fit<-fit %>%
+  select(type ,
+         aic_march.bmi.complete, bic_march.bmi.complete,
+         aic_april.bmi.complete, bic_april.bmi.complete
+  )
+
+kable(fit %>% 
+        mutate(type=ifelse(type=="rcs3",
+                           "restricted cubic spline (3 knots)",
+                           ifelse(type=="rcs4",
+                                  "restricted cubic spline (4 knots)",
+                                  ifelse(type=="rcs5",
+                                         "restricted cubic spline (5 knots)",      
+                                         type)))), 
+      col.names = c("Type",  
+                    "AIC","BIC", "AIC","BIC"))  %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))  %>%
+  add_header_above( c("", "Complete adjustment" = 2, "Complete adjustment" = 2))  %>%
+  add_header_above( c("","March"=2,"April"=2))%>%
+  add_header_above( c("From general population to diagnosed with COVID-19" = 5))
+```
+
+# Transition 2: From general population to hospitalised with COVID-19 
+```{r}
+# models and relative hazards from models -----
+r.hazard<-get.r.hazard(model=models.healthy.hospitalised,
+                       bmi.1=22,
+                       bmi.2=seq(15,60, 1)) 
+
+```
+
+## Principal analysis
+```{r}
+fit<-fit.fun(r.hazard)
+
+fit<-fit %>%
+  pivot_wider(names_from = name, 
+              values_from = c(aic,bic)) 
+fit<-fit %>%
+  select(type ,       
+         aic_overall.bmi.only, bic_overall.bmi.only,
+         aic_overall.bmi.age.gender,bic_overall.bmi.age.gender,
+         aic_overall.bmi.complete, bic_overall.bmi.complete,
+         
+         aic_firstage.bmi.only, bic_firstage.bmi.only,
+         aic_firstage.bmi.age.gender,bic_firstage.bmi.age.gender,
+         aic_firstage.bmi.complete, bic_firstage.bmi.complete,
+         
+         aic_secondage.bmi.only, bic_secondage.bmi.only,
+         aic_secondage.bmi.age.gender,bic_secondage.bmi.age.gender,
+         aic_secondage.bmi.complete, bic_secondage.bmi.complete,
+         
+         aic_thirdage.bmi.only, bic_thirdage.bmi.only,
+         aic_thirdage.bmi.age.gender,bic_thirdage.bmi.age.gender,
+         aic_thirdage.bmi.complete, bic_thirdage.bmi.complete,
+         
+         aic_female.bmi.only, bic_female.bmi.only,
+         aic_female.bmi.age.gender,bic_female.bmi.age.gender,
+         aic_female.bmi.complete, bic_female.bmi.complete,
+         
+         aic_male.bmi.only, bic_male.bmi.only,
+         aic_male.bmi.age.gender,bic_male.bmi.age.gender,
+         aic_male.bmi.complete, bic_male.bmi.complete
+         
+         
+  )
+
+
+kable(fit %>% 
+        mutate(type=ifelse(type=="rcs3",
+                           "restricted cubic spline (3 knots)",
+                           ifelse(type=="rcs4",
+                                  "restricted cubic spline (4 knots)",
+                                  ifelse(type=="rcs5",
+                                         "restricted cubic spline (5 knots)",      
+                                         type)))), 
+      col.names = c("Type",  
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC"))  %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))  %>%
+  add_header_above( c("",
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2
+                      
+  ))  %>%
+  add_header_above( c("",
+                      "Overall" = 6,
+                      "Aged 18 to 59" = 6,
+                      "Aged 60 to 79" = 6,
+                      "Aged 80 or above"=6,
+                      "Female" = 6,
+                      "Male" = 6))%>%
+  add_header_above(
+    c("From general population to hospitalised with COVID-19" = 37))
+```
+
+
+
+# Transition 4: From diagnosed with COVID-19 to hospitalised with COVID-19 
+```{r}
+# models and relative hazards from models -----
+r.hazard<-get.r.hazard(model=models.diagnosis.hospitalised,
+                       bmi.1=22,
+                       bmi.2=seq(15,60, 1)) 
+
+```
+
+## Principal analysis
+```{r}
+fit<-fit.fun(r.hazard)
+
+fit<-fit %>%
+  pivot_wider(names_from = name, 
+              values_from = c(aic,bic)) 
+fit<-fit %>%
+  select(type ,       
+         aic_overall.bmi.only, bic_overall.bmi.only,
+         aic_overall.bmi.age.gender,bic_overall.bmi.age.gender,
+         aic_overall.bmi.complete, bic_overall.bmi.complete,
+         
+         aic_firstage.bmi.only, bic_firstage.bmi.only,
+         aic_firstage.bmi.age.gender,bic_firstage.bmi.age.gender,
+         aic_firstage.bmi.complete, bic_firstage.bmi.complete,
+         
+         aic_secondage.bmi.only, bic_secondage.bmi.only,
+         aic_secondage.bmi.age.gender,bic_secondage.bmi.age.gender,
+         aic_secondage.bmi.complete, bic_secondage.bmi.complete,
+         
+         aic_thirdage.bmi.only, bic_thirdage.bmi.only,
+         aic_thirdage.bmi.age.gender,bic_thirdage.bmi.age.gender,
+         aic_thirdage.bmi.complete, bic_thirdage.bmi.complete,
+         
+         aic_female.bmi.only, bic_female.bmi.only,
+         aic_female.bmi.age.gender,bic_female.bmi.age.gender,
+         aic_female.bmi.complete, bic_female.bmi.complete,
+         
+         aic_male.bmi.only, bic_male.bmi.only,
+         aic_male.bmi.age.gender,bic_male.bmi.age.gender,
+         aic_male.bmi.complete, bic_male.bmi.complete
+         
+         
+  )
+
+
+kable(fit %>% 
+        mutate(type=ifelse(type=="rcs3",
+                           "restricted cubic spline (3 knots)",
+                           ifelse(type=="rcs4",
+                                  "restricted cubic spline (4 knots)",
+                                  ifelse(type=="rcs5",
+                                         "restricted cubic spline (5 knots)",      
+                                         type)))), 
+      col.names = c("Type",  
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC"))  %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))  %>%
+  add_header_above( c("",
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2
+                      
+  ))  %>%
+  add_header_above( c("",
+                      "Overall" = 6,
+                      "Aged 18 to 59" = 6,
+                      "Aged 60 to 79" = 6,
+                      "Aged 80 or above"=6,
+                      "Female" = 6,
+                      "Male" = 6))%>%
+  add_header_above(
+    c("From diagnosed with COVID-19 to hospitalised with COVID-19" = 37))
+```
+
+
+
+# Transition 5: From diagnosed with COVID-19 to death 
+```{r}
+# models and relative hazards from models -----
+r.hazard<-get.r.hazard(model=models.diagnosis.death,
+                       bmi.1=22,
+                       bmi.2=seq(15,60, 1)) 
+
+```
+
+## Principal analysis
+```{r}
+fit<-fit.fun(r.hazard)
+
+fit<-fit %>%
+  pivot_wider(names_from = name, 
+              values_from = c(aic,bic)) 
+fit<-fit %>%
+  select(type ,       
+         aic_overall.bmi.only, bic_overall.bmi.only,
+         aic_overall.bmi.age.gender,bic_overall.bmi.age.gender,
+         aic_overall.bmi.complete, bic_overall.bmi.complete,
+         
+         aic_firstage.bmi.only, bic_firstage.bmi.only,
+         aic_firstage.bmi.age.gender,bic_firstage.bmi.age.gender,
+         aic_firstage.bmi.complete, bic_firstage.bmi.complete,
+         
+         aic_secondage.bmi.only, bic_secondage.bmi.only,
+         aic_secondage.bmi.age.gender,bic_secondage.bmi.age.gender,
+         aic_secondage.bmi.complete, bic_secondage.bmi.complete,
+         
+         aic_thirdage.bmi.only, bic_thirdage.bmi.only,
+         aic_thirdage.bmi.age.gender,bic_thirdage.bmi.age.gender,
+         aic_thirdage.bmi.complete, bic_thirdage.bmi.complete,
+         
+         aic_female.bmi.only, bic_female.bmi.only,
+         aic_female.bmi.age.gender,bic_female.bmi.age.gender,
+         aic_female.bmi.complete, bic_female.bmi.complete,
+         
+         aic_male.bmi.only, bic_male.bmi.only,
+         aic_male.bmi.age.gender,bic_male.bmi.age.gender,
+         aic_male.bmi.complete, bic_male.bmi.complete
+  )
+
+
+kable(fit %>% 
+        mutate(type=ifelse(type=="rcs3",
+                           "restricted cubic spline (3 knots)",
+                           ifelse(type=="rcs4",
+                                  "restricted cubic spline (4 knots)",
+                                  ifelse(type=="rcs5",
+                                         "restricted cubic spline (5 knots)",      
+                                         type)))), 
+      col.names = c("Type",  
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC"))  %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))  %>%
+  add_header_above( c("",
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2
+                      
+  ))  %>%
+  add_header_above( c("",
+                      "Overall" = 6,
+                      "Aged 18 to 59" = 6,
+                      "Aged 60 to 79" = 6,
+                      "Aged 80 or above"=6,
+                      "Female" = 6,
+                      "Male" = 6))%>%
+  add_header_above(
+    c("From diagnosed with COVID-19 to death" = 37))
+```
+
+
+
+# Transition 6: From hospitalised with COVID-19 to death 
+```{r}
+# models and relative hazards from models -----
+r.hazard<-get.r.hazard(model=models.hospitalised.death,
+                       bmi.1=22,
+                       bmi.2=seq(15,60, 1)) 
+
+```
+## Principal analysis
+```{r}
+## Comparison of alternative models
+### Model fit
+fit<-fit.fun(r.hazard)
+
+fit<-fit %>%
+  pivot_wider(names_from = name, 
+              values_from = c(aic,bic)) 
+fit<-fit %>%
+  select(type ,       
+         aic_overall.bmi.only, bic_overall.bmi.only,
+         aic_overall.bmi.age.gender,bic_overall.bmi.age.gender,
+         aic_overall.bmi.complete, bic_overall.bmi.complete,
+         
+         aic_firstage.bmi.only, bic_firstage.bmi.only,
+         aic_firstage.bmi.age.gender,bic_firstage.bmi.age.gender,
+         aic_firstage.bmi.complete, bic_firstage.bmi.complete,
+         
+         aic_secondage.bmi.only, bic_secondage.bmi.only,
+         aic_secondage.bmi.age.gender,bic_secondage.bmi.age.gender,
+         aic_secondage.bmi.complete, bic_secondage.bmi.complete,
+         
+         aic_thirdage.bmi.only, bic_thirdage.bmi.only,
+         aic_thirdage.bmi.age.gender,bic_thirdage.bmi.age.gender,
+         aic_thirdage.bmi.complete, bic_thirdage.bmi.complete,
+         
+         aic_female.bmi.only, bic_female.bmi.only,
+         aic_female.bmi.age.gender,bic_female.bmi.age.gender,
+         aic_female.bmi.complete, bic_female.bmi.complete,
+         
+         aic_male.bmi.only, bic_male.bmi.only,
+         aic_male.bmi.age.gender,bic_male.bmi.age.gender,
+         aic_male.bmi.complete, bic_male.bmi.complete
+         
+         
+  )
+
+
+kable(fit %>% 
+        mutate(type=ifelse(type=="rcs3",
+                           "restricted cubic spline (3 knots)",
+                           ifelse(type=="rcs4",
+                                  "restricted cubic spline (4 knots)",
+                                  ifelse(type=="rcs5",
+                                         "restricted cubic spline (5 knots)",      
+                                         type)))), 
+      col.names = c("Type",  
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC",
+                    "AIC","BIC", "AIC","BIC", "AIC","BIC"))  %>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))  %>%
+  add_header_above( c("",
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2, 
+                      "Unadjusted" = 2, "Adjusted for age and gender" = 2,"Complete adjustment" = 2
+                      
+  ))  %>%
+  add_header_above( c("",
+                      "Overall" = 6,
+                      "Aged 18 to 59" = 6,
+                      "Aged 60 to 79" = 6,
+                      "Aged 80 or above"=6,
+                      "Female" = 6,
+                      "Male" = 6))%>%
+  add_header_above(
+    c("From hospitalised with COVID-19 to death" = 37))
+```
+
+
+
+
+
