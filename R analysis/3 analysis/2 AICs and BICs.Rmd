@@ -67,7 +67,7 @@ for ( n in nms ){
 }
 
 #load functions
-source("functions_hazardratio.R") 
+source("functions_hazardratio.R") #0 functions.R
 
 ```
 
