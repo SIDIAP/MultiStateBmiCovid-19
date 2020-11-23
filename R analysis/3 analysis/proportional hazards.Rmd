@@ -1,0 +1,513 @@
+---
+title: 'Proportionality test'
+output:
+  html_document:
+    code_folding: hide
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+    fig_width: 8
+    fig_height: 15
+editor_options:
+  chunk_output_type: console
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, comment = FALSE, 
+                      cache.lazy = FALSE)
+options(scipen=999)
+options(knitr.kable.NA = '')
+```
+
+```{r pack}
+library(survival)
+library(survminer)
+library(dplyr)
+```
+
+```{r data}
+load("1 data prep/working data.RData")
+# to all variable in the environment, group age, select complete cases, group obesity
+
+e<-eapply(.GlobalEnv, function(x) {
+  x<-x%>%
+    filter(!is.na(bmi.all_time_gr))%>%
+    mutate(age_gr.b= ifelse(age<=59, "Aged 18 to 59",
+                            ifelse(age<=79, "Aged 60 to 79",
+                                   "Aged 80 or above" ))) %>%
+    mutate(age_gr.b = factor(age_gr.b, levels = c("Aged 18 to 59", "Aged 60 to 79","Aged 80 or above"))) %>%
+    filter(!is.na(smoke.all_time))%>%
+    mutate(smoke.all_time=factor(smoke.all_time))%>%
+    mutate(smoke.all_time=relevel(smoke.all_time, "Never smoker"))%>%
+    filter(!is.na(medea))%>%
+    mutate(medea=relevel(medea, "U1"))%>%
+    droplevels()
+  levels(x$bmi.all_time_gr)<-list("normal or underweight"="normal or underweight",
+                                  "overweight" ="overweight",
+                                  "obese"=c("obese class I", "obese class II", "obese class III"))
+  output <- x
+}
+)
+
+nms <- names(e)
+for ( n in nms ){
+  assign(n, e[[n]])
+}
+```
+## Transition 1: From general population to diagnosed with COVID-19
+
+### BMI
+```{r }
+#graphical check proportionality of variables for the cox model
+
+survfit.t1.bmi<-survfit(Surv(time, status) ~ bmi.all_time_gr, 
+                 data = r.healthy.diagnosis)
+ggsurvplot.event<-ggsurvplot(survfit.t1.bmi, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t1.bmi, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+survfit.t1.bmi<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+survfit.t1.bmi <-arrange_ggsurvplots(survfit.t1.bmi, print = FALSE, ncol = 1, nrow = 2)
+survfit.t1.bmi
+
+```
+
+### Gender
+```{r}
+survfit.t1.gender<-survfit(Surv(time, status) ~ gender, 
+                 data = r.healthy.diagnosis)
+ggsurvplot.event<-ggsurvplot(survfit.t1.gender, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t1.gender, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+ggsurv.t1.gender<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+ggsurv.t1.gender <-arrange_ggsurvplots(ggsurv.t1.gender, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t1.gender 
+```
+
+### Age groups
+```{r}
+survfit.t1.age_gr<-survfit(Surv(time, status) ~ age_gr.b, 
+                 data = r.healthy.diagnosis)
+ggsurv.t1.age_gr<- list(
+  ggsurvplot(survfit.t1.age_gr, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t1.age_gr, fun = "cloglog", conf.int =TRUE))
+ggsurv.t1.age_gr <-arrange_ggsurvplots(ggsurv.t1.age_gr, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t1.age_gr
+```
+
+### Smoke
+```{r}
+survfit.t1.smoke<-survfit(Surv(time, status) ~ smoke.all_time, 
+                 data = r.healthy.diagnosis)
+ggsurv.t1.smoke<- list(
+  ggsurvplot(survfit.t1.smoke, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t1.smoke, fun = "cloglog", conf.int =TRUE))
+ggsurv.t1.smoke <-arrange_ggsurvplots(ggsurv.t1.smoke, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t1.smoke
+```
+
+### Medea
+```{r}
+survfit.t1.medea<-survfit(Surv(time, status) ~ medea, 
+                 data = r.healthy.diagnosis)
+ggsurv.t1.medea<- list(
+  ggsurvplot(survfit.t1.medea, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t1.medea, fun = "cloglog", conf.int =TRUE))
+ggsurv.t1.medea <-arrange_ggsurvplots(ggsurv.t1.medea, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t1.medea
+```
+
+## Transition 2: From general population to hospitalised with COVID-19
+
+### BMI
+```{r}
+#graphical check proportionality of variables for the cox model
+
+survfit.t2.bmi<-survfit(Surv(time, status) ~ bmi.all_time_gr, 
+                 data = r.healthy.hospitalised)
+ggsurvplot.event<-ggsurvplot(survfit.t2.bmi, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t2.bmi, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+survfit.t2.bmi<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+survfit.t2.bmi <-arrange_ggsurvplots(survfit.t2.bmi, print = FALSE, ncol = 1, nrow = 2)
+survfit.t2.bmi
+
+```
+
+### Gender
+```{r}
+survfit.t2.gender<-survfit(Surv(time, status) ~ gender, 
+                 data = r.healthy.hospitalised)
+ggsurvplot.event<-ggsurvplot(survfit.t2.gender, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t2.gender, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+ggsurv.t2.gender<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+ggsurv.t2.gender <-arrange_ggsurvplots(ggsurv.t2.gender, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t2.gender 
+```
+
+### Age groups
+```{r}
+survfit.t2.age_gr<-survfit(Surv(time, status) ~ age_gr.b, 
+                 data = r.healthy.hospitalised)
+ggsurv.t2.age_gr<- list(
+  ggsurvplot(survfit.t2.age_gr, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t2.age_gr, fun = "cloglog", conf.int =TRUE))
+ggsurv.t2.age_gr <-arrange_ggsurvplots(ggsurv.t2.age_gr, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t2.age_gr
+```
+
+### Smoke
+```{r}
+survfit.t2.smoke<-survfit(Surv(time, status) ~ smoke.all_time, 
+                 data = r.healthy.hospitalised)
+ggsurv.t2.smoke<- list(
+  ggsurvplot(survfit.t2.smoke, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t2.smoke, fun = "cloglog", conf.int =TRUE))
+ggsurv.t2.smoke <-arrange_ggsurvplots(ggsurv.t2.smoke, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t2.smoke
+```
+
+### Medea
+```{r}
+survfit.t2.medea<-survfit(Surv(time, status) ~ medea, 
+                 data = r.healthy.hospitalised)
+ggsurv.t2.medea<- list(
+  ggsurvplot(survfit.t2.medea, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t2.medea, fun = "cloglog", conf.int =TRUE))
+ggsurv.t2.medea <-arrange_ggsurvplots(ggsurv.t2.medea, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t2.medea
+```
+
+## Transition 3: From general population to death
+
+### BMI
+```{r }
+#graphical check proportionality of variables for the cox model
+
+survfit.t3.bmi<-survfit(Surv(time, status) ~ bmi.all_time_gr, 
+                 data = r.healthy.death)
+ggsurvplot.event<-ggsurvplot(survfit.t3.bmi, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t3.bmi, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+survfit.t3.bmi<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+survfit.t3.bmi <-arrange_ggsurvplots(survfit.t3.bmi, print = FALSE, ncol = 1, nrow = 2)
+survfit.t3.bmi
+
+```
+
+### Gender
+```{r}
+survfit.t3.gender<-survfit(Surv(time, status) ~ gender, 
+                 data = r.healthy.death)
+ggsurvplot.event<-ggsurvplot(survfit.t3.gender, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t3.gender, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+ggsurv.t3.gender<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+ggsurv.t3.gender <-arrange_ggsurvplots(ggsurv.t3.gender, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t3.gender 
+```
+
+### Age groups
+```{r}
+survfit.t3.age_gr<-survfit(Surv(time, status) ~ age_gr.b, 
+                 data = r.healthy.death)
+ggsurv.t3.age_gr<- list(
+  ggsurvplot(survfit.t3.age_gr, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t3.age_gr, fun = "cloglog", conf.int =TRUE))
+ggsurv.t3.age_gr <-arrange_ggsurvplots(ggsurv.t3.age_gr, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t3.age_gr
+```
+
+### Smoke
+```{r}
+survfit.t3.smoke<-survfit(Surv(time, status) ~ smoke.all_time, 
+                 data = r.healthy.death)
+ggsurv.t3.smoke<- list(
+  ggsurvplot(survfit.t3.smoke, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t3.smoke, fun = "cloglog", conf.int =TRUE))
+ggsurv.t3.smoke <-arrange_ggsurvplots(ggsurv.t3.smoke, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t3.smoke
+```
+
+### Medea
+```{r}
+survfit.t3.medea<-survfit(Surv(time, status) ~ medea, 
+                 data = r.healthy.death)
+ggsurv.t3.medea<- list(
+  ggsurvplot(survfit.t3.medea, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t3.medea, fun = "cloglog", conf.int =TRUE))
+ggsurv.t3.medea <-arrange_ggsurvplots(ggsurv.t3.medea, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t3.medea
+```
+
+## Transition 4: From diagnosed with COVID-19 to hospitalised with COVID-19
+
+### BMI
+```{r }
+#graphical check proportionality of variables for the cox model
+
+survfit.t4.bmi<-survfit(Surv(time, status) ~ bmi.all_time_gr, 
+                 data = r.diagnosis.hospitalised)
+ggsurvplot.event<-ggsurvplot(survfit.t4.bmi, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t4.bmi, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+survfit.t4.bmi<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+survfit.t4.bmi <-arrange_ggsurvplots(survfit.t4.bmi, print = FALSE, ncol = 1, nrow = 2)
+survfit.t4.bmi
+
+```
+
+### Gender
+```{r}
+survfit.t4.gender<-survfit(Surv(time, status) ~ gender, 
+                 data = r.diagnosis.hospitalised)
+ggsurvplot.event<-ggsurvplot(survfit.t4.gender, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t4.gender, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+ggsurv.t4.gender<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+ggsurv.t4.gender <-arrange_ggsurvplots(ggsurv.t4.gender, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t4.gender 
+```
+
+### Age groups
+```{r}
+survfit.t4.age_gr<-survfit(Surv(time, status) ~ age_gr.b, 
+                 data = r.diagnosis.hospitalised)
+ggsurv.t4.age_gr<- list(
+  ggsurvplot(survfit.t4.age_gr, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t4.age_gr, fun = "cloglog", conf.int =TRUE))
+ggsurv.t4.age_gr <-arrange_ggsurvplots(ggsurv.t4.age_gr, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t4.age_gr
+```
+
+### Smoke
+```{r}
+survfit.t4.smoke<-survfit(Surv(time, status) ~ smoke.all_time, 
+                 data = r.diagnosis.hospitalised)
+ggsurv.t4.smoke<- list(
+  ggsurvplot(survfit.t4.smoke, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t4.smoke, fun = "cloglog", conf.int =TRUE))
+ggsurv.t4.smoke <-arrange_ggsurvplots(ggsurv.t4.smoke, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t4.smoke
+```
+
+### Medea
+```{r}
+survfit.t4.medea<-survfit(Surv(time, status) ~ medea, 
+                 data = r.diagnosis.hospitalised)
+ggsurv.t4.medea<- list(
+  ggsurvplot(survfit.t4.medea, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t4.medea, fun = "cloglog", conf.int =TRUE))
+ggsurv.t4.medea <-arrange_ggsurvplots(ggsurv.t4.medea, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t4.medea
+```
+
+## Transition 5: From diagnosed with COVID-19 to death
+
+### BMI
+```{r }
+#graphical check proportionality of variables for the cox model
+
+survfit.t5.bmi<-survfit(Surv(time, status) ~ bmi.all_time_gr, 
+                 data = r.diagnosis.death)
+ggsurvplot.event<-ggsurvplot(survfit.t5.bmi, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t5.bmi, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+survfit.t5.bmi<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+survfit.t5.bmi <-arrange_ggsurvplots(survfit.t5.bmi, print = FALSE, ncol = 1, nrow = 2)
+survfit.t5.bmi
+
+```
+
+### Gender
+```{r}
+survfit.t5.gender<-survfit(Surv(time, status) ~ gender, 
+                 data = r.diagnosis.death)
+ggsurvplot.event<-ggsurvplot(survfit.t5.gender, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t5.gender, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+ggsurv.t5.gender<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+ggsurv.t5.gender <-arrange_ggsurvplots(ggsurv.t5.gender, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t5.gender 
+```
+
+### Age groups
+```{r}
+survfit.t5.age_gr<-survfit(Surv(time, status) ~ age_gr.b, 
+                 data = r.diagnosis.death)
+ggsurv.t5.age_gr<- list(
+  ggsurvplot(survfit.t5.age_gr, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t5.age_gr, fun = "cloglog", conf.int =TRUE))
+ggsurv.t5.age_gr <-arrange_ggsurvplots(ggsurv.t5.age_gr, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t5.age_gr
+```
+
+### Smoke
+```{r}
+survfit.t5.smoke<-survfit(Surv(time, status) ~ smoke.all_time, 
+                 data = r.diagnosis.death)
+ggsurv.t5.smoke<- list(
+  ggsurvplot(survfit.t5.smoke, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t5.smoke, fun = "cloglog", conf.int =TRUE))
+ggsurv.t5.smoke <-arrange_ggsurvplots(ggsurv.t5.smoke, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t5.smoke
+```
+
+### Medea
+```{r}
+survfit.t5.medea<-survfit(Surv(time, status) ~ medea, 
+                 data = r.diagnosis.death)
+ggsurv.t5.medea<- list(
+  ggsurvplot(survfit.t5.medea, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t5.medea, fun = "cloglog", conf.int =TRUE))
+ggsurv.t5.medea <-arrange_ggsurvplots(ggsurv.t5.medea, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t5.medea
+```
+
+## Transition 5: From hospitalised with COVID-19 to death
+
+### BMI
+```{r }
+#graphical check proportionality of variables for the cox model
+
+survfit.t6.bmi<-survfit(Surv(time, status) ~ bmi.all_time_gr, 
+                 data = r.hospitalised.death)
+ggsurvplot.event<-ggsurvplot(survfit.t6.bmi, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t6.bmi, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+survfit.t6.bmi<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+survfit.t6.bmi <-arrange_ggsurvplots(survfit.t6.bmi, print = FALSE, ncol = 1, nrow = 2)
+survfit.t6.bmi
+
+```
+
+### Gender
+```{r}
+survfit.t6.gender<-survfit(Surv(time, status) ~ gender, 
+                 data = r.hospitalised.death)
+ggsurvplot.event<-ggsurvplot(survfit.t6.gender, fun = "event", conf.int =TRUE)
+ggsurvplot.event$plot<-ggsurvplot.event$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.title = element_blank())
+ggsurvplot.cloglog<-ggsurvplot(survfit.t6.gender, fun = "cloglog", conf.int =TRUE)
+ggsurvplot.cloglog$plot<-ggsurvplot.cloglog$plot+ coord_cartesian(xlim = c(NA,67))+
+  theme(legend.position = "none") 
+  
+
+ggsurv.t6.gender<- list(
+  ggsurvplot.event,
+  ggsurvplot.cloglog)
+ggsurv.t6.gender <-arrange_ggsurvplots(ggsurv.t6.gender, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t6.gender 
+```
+
+### Age groups
+```{r}
+survfit.t6.age_gr<-survfit(Surv(time, status) ~ age_gr.b, 
+                 data = r.hospitalised.death)
+ggsurv.t6.age_gr<- list(
+  ggsurvplot(survfit.t6.age_gr, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t6.age_gr, fun = "cloglog", conf.int =TRUE))
+ggsurv.t6.age_gr <-arrange_ggsurvplots(ggsurv.t6.age_gr, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t6.age_gr
+```
+
+### Smoke
+```{r}
+survfit.t6.smoke<-survfit(Surv(time, status) ~ smoke.all_time, 
+                 data = r.hospitalised.death)
+ggsurv.t6.smoke<- list(
+  ggsurvplot(survfit.t6.smoke, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t6.smoke, fun = "cloglog", conf.int =TRUE))
+ggsurv.t6.smoke <-arrange_ggsurvplots(ggsurv.t6.smoke, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t6.smoke
+```
+
+### Medea
+```{r}
+survfit.t6.medea<-survfit(Surv(time, status) ~ medea, 
+                 data = r.hospitalised.death)
+ggsurv.t6.medea<- list(
+  ggsurvplot(survfit.t6.medea, fun = "event", conf.int =TRUE),
+  ggsurvplot(survfit.t6.medea, fun = "cloglog", conf.int =TRUE))
+ggsurv.t6.medea <-arrange_ggsurvplots(ggsurv.t6.medea, print = FALSE, ncol = 1, nrow = 2)
+ggsurv.t6.medea
+```
