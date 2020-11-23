@@ -1,0 +1,1162 @@
+---
+title: 'Hazard Ratios for BMI as continuous variable'
+output:
+  html_document:
+    code_folding: hide
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, comment = FALSE, 
+                      cache.lazy = FALSE)
+options(scipen=999)
+options(knitr.kable.NA = '')
+```
+
+```{r package, include=FALSE}
+# packbmi.all_times -----
+library(kableExtra)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(rms)
+library(stringr)
+library(purrr)
+```
+
+```{r data, include=FALSE}
+
+load("1 data prep/working data.RData")
+# to all variable in the environment, group age, select complete cases, group obesity
+
+e<-eapply(.GlobalEnv, function(x) {
+  x<-x%>%
+    filter(!is.na(bmi.all_time_gr))%>%
+    mutate(age_gr.b= ifelse(age<=59, "Aged 18 to 59",
+                            ifelse(age<=79, "Aged 60 to 79",
+                                   "Aged 80 or above" ))) %>%
+    mutate(age_gr.b = factor(age_gr.b, levels = c("Aged 18 to 59", "Aged 60 to 79","Aged 80 or above"))) %>%
+    filter(!is.na(smoke.all_time))%>%
+    mutate(smoke.all_time=factor(smoke.all_time))%>%
+    mutate(smoke.all_time=relevel(smoke.all_time, "Never smoker"))%>%
+    filter(!is.na(medea))%>%
+    mutate(medea=relevel(medea, "U1"))%>%
+    droplevels()
+  levels(x$bmi.all_time_gr)<-list("normal or underweight"="normal or underweight",
+                                  "overweight" ="overweight",
+                                  "obese"=c("obese class I", "obese class II", "obese class III"))
+  output <- x
+}
+)
+
+nms <- names(e)
+for ( n in nms ){
+  assign(n, e[[n]])
+}
+
+#load functions
+source("functions_hazardratio.R") 
+
+```
+
+```{r, cache=TRUE}
+# get models -----
+models.healthy.diagnosis<-get.models(r.healthy.diagnosis, "healthy.diagnosis")
+models.healthy.hospitalised<-get.models(r.healthy.hospitalised, "healthy.hospitalised")
+models.diagnosis.hospitalised<-get.models(r.diagnosis.hospitalised, "diagnosis.hospitalised")
+models.diagnosis.death<-get.models(r.diagnosis.death, "diagnosis.death")
+models.hospitalised.death<-get.models(r.hospitalised.death, "hospitalised.death")
+
+```
+
+## Relative hazards from selected models
+```{r}
+plot.data<-rbind(
+  get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.overall.rcs3.bmi.complete),
+               bmi.1=22,
+               bmi.2=seq(15, 60, 1))%>% 
+    select(hr,hr.low, hr.high,rel.bmi) %>%
+    mutate(trans="From general population to diagnosed with COVID-19",
+           strata="Overall",
+           model="Complete adjustment"),
+  
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.overall.quadratic.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Overall",
+         model="Complete adjustment"),
+
+
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.overall.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Overall",
+         model="Complete adjustment"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.overall.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Overall",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.overall.quadratic.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Overall",
+         model="Complete adjustment"),
+
+
+# age 18 to 59
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.firstage.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 18 to 59",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.firstage.quadratic.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 18 to 59",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.firstage.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 18 to 59",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.firstage.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 18 to 59",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.firstage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 18 to 59",
+         model="Complete adjustment"),
+
+# age 60 to 79
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.secondage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 60 to 79",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.secondage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 60 to 79",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.secondage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 60 to 79",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.secondage.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 60 to 79",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.secondage.quadratic.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 60 to 79",
+         model="Complete adjustment"),
+
+# over 80
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.thirdage.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 80 or above",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.thirdage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 80 or above",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.thirdage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 80 or above",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.thirdage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 80 or above",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.thirdage.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 80 or above",
+         model="Complete adjustment"),
+
+# Female
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.female.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Female",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.female.quadratic.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Female",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.female.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Female",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.female.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Female",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.female.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Female",
+         model="Complete adjustment"),
+
+# Male
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.male.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Male",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.male.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Male",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.male.rcs3.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Male",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.male.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Male",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.male.linear.bmi.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Male",
+         model="Complete adjustment"),
+
+
+# adjusted for age and sex 
+##########
+
+ get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.overall.rcs3.bmi.age.gender),
+               bmi.1=22,
+               bmi.2=seq(15, 60, 1))%>% 
+    select(hr,hr.low, hr.high,rel.bmi) %>%
+    mutate(trans="From general population to diagnosed with COVID-19",
+           strata="Overall",
+           model="Adjusted for age and sex"),
+  
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.overall.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Overall",
+         model="Adjusted for age and sex"),
+
+ get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.overall.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Overall",
+         model="Adjusted for age and sex"),
+ 
+ get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.overall.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Overall",
+         model="Adjusted for age and sex"),
+
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.overall.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Overall",
+         model="Adjusted for age and sex"),
+
+
+# age 18 to 59
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.firstage.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 18 to 59",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.firstage.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 18 to 59",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.firstage.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 18 to 59",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.firstage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 18 to 59",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.firstage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 18 to 59",
+         model="Adjusted for age and sex"),
+
+# age 60 to 79
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.secondage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 60 to 79",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.secondage.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 60 to 79",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.secondage.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 60 to 79",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.secondage.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 60 to 79",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.secondage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 60 to 79",
+         model="Adjusted for age and sex"),
+
+# over 80
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.thirdage.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 80 or above",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.thirdage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 80 or above",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.thirdage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 80 or above",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.thirdage.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 80 or above",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.thirdage.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 80 or above",
+         model="Adjusted for age and sex"),
+
+# Female
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.female.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Female",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.female.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Female",
+         model="Adjusted for age and sex"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.female.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Female",
+         model="Adjusted for age and sex"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.female.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Female",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.female.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Female",
+         model="Adjusted for age and sex"),
+
+# Male
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.male.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Male",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.male.quadratic.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Male",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.male.rcs3.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Male",
+         model="Adjusted for age and sex"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.male.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Male",
+         model="Adjusted for age and sex"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.male.linear.bmi.age.gender),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Male",
+         model="Adjusted for age and sex"),
+
+# unadjusted
+###############
+
+
+ get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.overall.rcs3.bmi.only),
+               bmi.1=22,
+               bmi.2=seq(15, 60, 1))%>% 
+    select(hr,hr.low, hr.high,rel.bmi) %>%
+    mutate(trans="From general population to diagnosed with COVID-19",
+           strata="Overall",
+           model="Unadjusted"),
+  
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.overall.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Overall",
+         model="Unadjusted"),
+
+ get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.overall.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Overall",
+         model="Unadjusted"),
+ 
+ get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.overall.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Overall",
+         model="Unadjusted"),
+
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.overall.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Overall",
+         model="Unadjusted"),
+
+
+# age 18 to 59
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.firstage.quadratic.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 18 to 59",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.firstage.quadratic.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 18 to 59",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.firstage.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 18 to 59",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.firstage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 18 to 59",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.firstage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 18 to 59",
+         model="Unadjusted"),
+
+# age 60 to 79
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.secondage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 60 to 79",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.secondage.quadratic.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 60 to 79",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.secondage.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 60 to 79",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.secondage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 60 to 79",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.secondage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 60 to 79",
+         model="Unadjusted"),
+
+# over 80
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.thirdage.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Aged 80 or above",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.thirdage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Aged 80 or above",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.thirdage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Aged 80 or above",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.thirdage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Aged 80 or above",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.thirdage.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Aged 80 or above",
+         model="Unadjusted"),
+
+# Female
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.female.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Female",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.female.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Female",
+         model="Unadjusted"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.female.quadratic.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Female",
+         model="Unadjusted"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.female.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Female",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.female.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Female",
+         model="Unadjusted"),
+
+# Male
+get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.male.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Male",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.healthy.hospitalised$m.healthy.hospitalised.male.quadratic.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Male",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.male.rcs3.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Male",
+         model="Unadjusted"),
+
+get.r.hazard(model=list("bmi"=models.diagnosis.death$m.diagnosis.death.male.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Male",
+         model="Unadjusted"),
+get.r.hazard(model=list("bmi"=models.hospitalised.death$m.hospitalised.death.male.linear.bmi.only),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Male",
+         model="Unadjusted"),
+ # march
+  get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.march.rcs3.bmi.complete),
+               bmi.1=22,
+               bmi.2=seq(15, 60, 1))%>% 
+    select(hr,hr.low, hr.high,rel.bmi) %>%
+    mutate(trans="From general population to diagnosed with COVID-19",
+           strata="March",
+           model="Complete adjustment"),
+  
+  # april
+  get.r.hazard(model=list("bmi"=models.healthy.diagnosis$m.healthy.diagnosis.april.rcs3.bmi.complete),
+               bmi.1=22,
+               bmi.2=seq(15, 60, 1))%>% 
+    select(hr,hr.low, hr.high,rel.bmi) %>%
+    mutate(trans="From general population to diagnosed with COVID-19",
+           strata="April",
+           model="Complete adjustment"),
+# 5 y BMI
+get.r.hazard(model=list("bmi5y"=models.healthy.diagnosis$m.healthy.diagnosis.overall.rcs3.bmi5y.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>% 
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to diagnosed with COVID-19",
+         strata="Overall5y",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi5y"=models.healthy.hospitalised$m.healthy.hospitalised.overall.quadratic.bmi5y.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From general population to hospitalised with COVID-19",
+         strata="Overall5y",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi5y"=models.diagnosis.hospitalised$m.diagnosis.hospitalised.overall.rcs3.bmi5y.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to hospitalised with COVID-19",
+         strata="Overall5y",
+         model="Complete adjustment"),
+
+get.r.hazard(model=list("bmi5y"=models.diagnosis.death$m.diagnosis.death.overall.rcs3.bmi5y.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From diagnosed with COVID-19 to death",
+         strata="Overall5y",
+         model="Complete adjustment"),
+get.r.hazard(model=list("bmi5y"=models.hospitalised.death$m.hospitalised.death.overall.quadratic.bmi5y.complete),
+             bmi.1=22,
+             bmi.2=seq(15, 60, 1))%>%
+  select(hr,hr.low, hr.high,rel.bmi) %>%
+  mutate(trans="From hospitalised with COVID-19 to death",
+         strata="Overall5y",
+         model="Complete adjustment")
+  )
+
+
+save(plot.data, file="./plot.data.Rda")
+
+```
+
+
+## Hazards ratios of COVID-19 outcomes related to body mass index, with 95% CIs
+```{r}
+#load("//epofs/apistillo/CHARYBDIS/Multistate model/plot.data.Rda")
+
+plot.data1<-plot.data%>%
+  filter(rel.bmi%in%c(16,19,22,25,28,31,34,37,40,43,47,50),
+    strata=="Overall", model=="Complete adjustment")%>%
+  mutate(hr=round(hr, 2), hr.low=round(hr.low, 2), hr.high=round(hr.high, 2))%>%
+  mutate(hr = paste0(hr, " (", hr.low, "-", hr.high, ")"))%>%
+  select(hr, rel.bmi, trans)%>%
+  separate(trans, sep=" to", into=c("from", "to"), remove=T)%>%
+  pivot_wider(names_from = c("from","to"), values_from="hr", names_sep=" to ")
+
+kable(plot.data1, col.names = c("BMI values (kg/m2)",
+                                "to diagnosed with COVID-19",
+                                "to hospitalised with COVID-19",
+                                "to hospitalised with COVID-19",
+                                "to death",
+                                "to death"))%>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))%>%
+  add_header_above(c(" "=1,
+                      "From general population"=2,
+                      "From diagnosed with COVID-19"=2,
+                      "From hospitalised with COVID-19"=1))
+  
+   
+```
+
+## HRs and 95%CIs, for the undadjusted, adjusted for age and sex and fully adjusted model
+```{r}
+
+plot.data1<-plot.data%>%
+  filter(strata=="Overall")%>%
+  filter(rel.bmi%in%c(16,19,22,25,28,31,34,37,40,43,47,50))%>%
+  mutate(hr=round(hr, 2), hr.low=round(hr.low, 2), hr.high=round(hr.high, 2))%>%
+  mutate(hr = paste0(hr, " (", hr.low, "-", hr.high, ")"))%>%
+  select(-hr.low, -hr.high)%>%
+  separate(trans, sep=" to ", into=c("from", "to"), remove=T)%>%
+  mutate(model=factor(model, levels=c("Unadjusted", "Adjusted for age and sex", "Complete adjustment")))%>%
+  arrange(model)%>%
+  pivot_wider(names_from = c("from","to", "strata", "model" ), values_from="hr", names_sep=" to ")%>%
+  select(contains("bmi"), contains("general population to diagnosed"),
+         contains("general population to hospitalised"), 
+         contains("diagnosed with COVID-19 to hospitalised"),
+         contains("diagnosed with COVID-19 to death"),
+         contains("hospitalised with COVID-19 to death"))
+
+kable(plot.data1, col.names = c("BMI values (kg/m2)",
+                                "Unadjusted", "Adjusted for age and sex", "Fully adjusted",
+                               "Unadjusted", "Adjusted for age and sex", "Fully adjusted",
+                                "Unadjusted", "Adjusted for age and sex", "Fully adjusted",
+                               "Unadjusted", "Adjusted for age and sex", "Fully adjusted",
+                               "Unadjusted", "Adjusted for age and sex", "Fully adjusted"))%>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))%>%
+   add_header_above(c(" "=1,
+                      "to diagnosed with COVID-19"=3,
+                      "to hospitalised with COVID-19"=3,
+                      "to hospitalised with COVID-19"=3,
+                      "to death"=3,
+                      "to death"=3))%>%
+  add_header_above(c(" "=1,
+                      "From general population"=6,
+                      "From diagnosed with COVID-19"=6,
+                      "From hospitalised with COVID-19"=3))
+
+
+```
+
+## Hazards ratios of COVID-19 outcomes related to body mass index, with 95% CIs, stratified by age and sex
+### A. Age
+```{r}
+plot.data1<-plot.data%>%
+  filter(rel.bmi%in%c(16,19,22,25,28,31,34,37,40,43,47,50),
+     strata%in%c("Aged 18 to 59","Aged 60 to 79", "Aged 80 or above"),model=="Complete adjustment")%>%
+  mutate(hr=round(hr, 2), hr.low=round(hr.low, 2), hr.high=round(hr.high, 2))%>%
+  mutate(hr = paste0(hr, " (", hr.low, "-", hr.high, ")"))%>%
+  select(hr, rel.bmi, trans, strata)%>%
+  separate(trans, sep=" to ", into=c("from", "to"), remove=T)%>%
+  pivot_wider(names_from = c("from","to","strata"), values_from="hr", names_sep=" to ")%>%
+  select(contains("bmi"), contains("general population to diagnosed"),
+         contains("general population to hospitalised"), 
+         contains("diagnosed with COVID-19 to hospitalised"),
+         contains("diagnosed with COVID-19 to death"),
+         contains("hospitalised with COVID-19 to death"))
+
+kable(plot.data1, col.names = c("BMI values (kg/m2)",
+                                "18 to 59", "60 to 79", "80 or older",
+                                "18 to 59", "60 to 79", "80 or older",
+                                "18 to 59", "60 to 79", "80 or older",
+                                "18 to 59", "60 to 79", "80 or older",
+                                "18 to 59", "60 to 79", "80 or older"))%>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))%>%
+   add_header_above(c(" "=1,
+                      "to diagnosed with COVID-19"=3,
+                      "to hospitalised with COVID-19"=3,
+                      "to hospitalised with COVID-19"=3,
+                      "to death"=3,
+                      "to death"=3))%>%
+  add_header_above(c(" "=1,
+                      "From general population"=6,
+                      "From diagnosed with COVID-19"=6,
+                      "From hospitalised with COVID-19"=3))
+
+  
+```
+
+### B. Sex
+```{r}
+
+plot.data1<-plot.data%>%
+  filter(rel.bmi%in%c(16,19,22,25,28,31,34,37,40,43,47,50),
+     strata%in%c("Male", "Female"),model=="Complete adjustment")%>%
+  mutate(hr=round(hr, 2), hr.low=round(hr.low, 2), hr.high=round(hr.high, 2))%>%
+  mutate(hr = paste0(hr, " (", hr.low, "-", hr.high, ")"))%>%
+  select(hr, rel.bmi, trans, strata)%>%
+  separate(trans, sep=" to ", into=c("from", "to"), remove=T)%>%
+  pivot_wider(names_from = c("from","to","strata"), values_from="hr", names_sep=" to ")%>%
+  select(contains("bmi"), contains("general population to diagnosed"),
+         contains("general population to hospitalised"), 
+         contains("diagnosed with COVID-19 to hospitalised"),
+         contains("diagnosed with COVID-19 to death"),
+         contains("hospitalised with COVID-19 to death"))
+
+kable(plot.data1, col.names = c("BMI values (kg/m2)",
+                                "Female", "Male", 
+                                 "Female", "Male", 
+                                 "Female", "Male", 
+                                 "Female", "Male", 
+                                 "Female", "Male"))%>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))%>%
+   add_header_above(c(" "=1,
+                      "to diagnosed with COVID-19"=2,
+                      "to hospitalised with COVID-19"=2,
+                      "to hospitalised with COVID-19"=2,
+                      "to death"=2,
+                      "to death"=2))%>%
+  add_header_above(c(" "=1,
+                      "From general population"=4,
+                      "From diagnosed with COVID-19"=4,
+                      "From hospitalised with COVID-19"=2))
+  
+```
+
+## Hazard Ratios of the risk of COVID-19 diagnosis related to body mass index, allowing for non-linear effects, with 95% CI, stratified by calendar month.
+```{r}
+plot.data1<-plot.data%>%
+  filter(rel.bmi%in%c(16,19,22,25,28,31,34,37,40,43,47,50),
+     strata%in%c("March","April"),model=="Complete adjustment")%>%
+  mutate(hr=round(hr, 2), hr.low=round(hr.low, 2), hr.high=round(hr.high, 2))%>%
+  mutate(hr = paste0(hr, " (", hr.low, "-", hr.high, ")"))%>%
+  select(hr, rel.bmi, trans, strata)%>%
+  separate(trans, sep=" to ", into=c("from", "to"), remove=T)%>%
+  pivot_wider(names_from = c("from","to","strata"), values_from="hr", names_sep=" to ")%>%
+  select(contains("bmi"), contains("general population to diagnosed"),
+         contains("general population to hospitalised"), 
+         contains("diagnosed with COVID-19 to hospitalised"),
+         contains("diagnosed with COVID-19 to death"),
+         contains("hospitalised with COVID-19 to death"))
+
+kable(plot.data1, col.names = c("BMI values (kg/m2)",
+                               "March",
+                                "April"))%>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))%>%
+   add_header_above(c(" "=1,
+                      "to diagnosed with COVID-19"=2))%>%
+  add_header_above(c(" "=1,
+                      "From general population"=2))
+  
+```
+
+
+## Hazards ratios of COVID-19 outcomes related to body mass index, with 95% CIs among people with a BMI measurement not older than five years prior to the index date.
+```{r}
+plot.data1<-plot.data%>%
+  filter(rel.bmi%in%c(16,19,22,25,28,31,34,37,40,43,47,50),
+     strata%in%c("Overall5y"),model=="Complete adjustment")%>%
+  mutate(hr=round(hr, 2), hr.low=round(hr.low, 2), hr.high=round(hr.high, 2))%>%
+  mutate(hr = paste0(hr, " (", hr.low, "-", hr.high, ")"))%>%
+  select(hr, rel.bmi, trans, strata)%>%
+  separate(trans, sep=" to ", into=c("from", "to"), remove=T)%>%
+  pivot_wider(names_from = c("from","to","strata"), values_from="hr", names_sep=" to ")%>%
+  select(contains("bmi"), contains("general population to diagnosed"),
+         contains("general population to hospitalised"), 
+         contains("diagnosed with COVID-19 to hospitalised"),
+         contains("diagnosed with COVID-19 to death"),
+         contains("hospitalised with COVID-19 to death"))
+
+kable(plot.data1, col.names = c("BMI values (kg/m2)",
+                                "Overall",
+                                "Overall",
+                               "Overall",
+                                "Overall",
+                              "Overall"))%>%
+  kable_styling(bootstrap_options = c("striped", "bordered"))%>%
+   add_header_above(c(" "=1,
+                      "to diagnosed with COVID-19"=1,
+                      "to hospitalised with COVID-19"=1,
+                      "to hospitalised with COVID-19"=1,
+                      "to death"=1,
+                      "to death"=1))%>%
+  add_header_above(c(" "=1,
+                      "From general population"=2,
+                      "From diagnosed with COVID-19"=2,
+                      "From hospitalised with COVID-19"=1))
+
+  
+```
+
+
+## Computation of p of interaction BMI and age
+```{r}
+
+# interaccion BMI and age in continuous
+working.data<-r.healthy.diagnosis
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(age)+gender+medea+ smoke.all_time,
+       data = working.data)
+a #<0.0001
+working.data<-r.healthy.hospitalised
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ pol(bmi.all_time,2)*(age)+gender+medea+ smoke.all_time,
+       data = working.data)
+a # 0.2080 
+working.data<-r.diagnosis.hospitalised
+dd<<-datadist(working.data); options(datadist = "dd" )
+
+a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(age)+gender+medea+ smoke.all_time,
+       data = working.data)
+a #0.1153 
+working.data<-r.diagnosis.death
+dd<<-datadist(working.data); options(datadist = "dd" )
+
+a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(age)+gender+medea+ smoke.all_time,
+       data = working.data)
+a#<0.0001 
+working.data<-r.hospitalised.death
+dd<<-datadist(working.data); options(datadist = "dd" )
+
+a<-cph(Surv(time, status) ~ pol(bmi.all_time,2)*(age)+gender+medea+ smoke.all_time,
+       data = working.data)
+a #0.5244 
+
+
+# 
+# ## interacciones categorias de edad
+# a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(age_gr.b)+gender+medea+ smoke.all_time,
+#        data = r.healthy.diagnosis)
+# a
+# a<-cph(Surv(time, status) ~ pol(bmi.all_time,2)*(age_gr.b)+gender+medea+ smoke.all_time,
+#        data = r.healthy.hospitalised)
+# a
+# a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(age_gr.b)+gender+medea+ smoke.all_time,
+#        data = r.diagnosis.hospitalised)
+# a
+# a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(age_gr.b)+gender+medea+ smoke.all_time,
+#        data = r.diagnosis.death)
+# a
+# a<-cph(Surv(time, status) ~ pol(bmi.all_time,2)*(age_gr.b)+gender+medea+ smoke.all_time,
+#        data = r.hospitalised.death)
+# a
+```
+
+## Computation of p of interaction between BMI and gender
+```{r}
+# #interaccion between BMI and gender
+working.data<-r.healthy.diagnosis
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(gender)+age+medea+ smoke.all_time,
+       data = working.data)
+a
+
+working.data<-r.healthy.hospitalised
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ pol(bmi.all_time,2)*(gender)+age+medea+ smoke.all_time,
+       data = working.data)
+a
+
+working.data<-r.diagnosis.hospitalised
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(gender)+age+medea+ smoke.all_time,
+       data = working.data)
+a
+
+working.data<-r.diagnosis.death
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ rcs(bmi.all_time,3)*(gender)+age+medea+ smoke.all_time,
+       data = working.data)
+a
+
+working.data<-r.hospitalised.death
+dd<<-datadist(working.data); options(datadist = "dd" )
+a<-cph(Surv(time, status) ~ pol(bmi.all_time,2)*(gender)+age+medea+ smoke.all_time,
+       data = working.data)
+a
+```
+
+## Computation of p of linearity
+```{r}
+# #likelihood-ratio test entre BMI non lineal y BMI lineal
+a<-coxph(Surv(time, status) ~ rcs(bmi.all_time,3)+gender+age+medea+ smoke.all_time,
+       data = r.healthy.diagnosis)
+
+b<-coxph(Surv(time, status) ~ bmi.all_time+gender+age+medea+ smoke.all_time,
+       data = r.healthy.diagnosis)
+
+anova(a,b)
+a<-coxph(Surv(time, status) ~ pol(bmi.all_time,2)+gender+age+medea+ smoke.all_time,
+       data = r.healthy.hospitalised)
+b<-coxph(Surv(time, status) ~ bmi.all_time+gender+age+medea+ smoke.all_time,
+       data = r.healthy.hospitalised)
+anova(a,b)
+
+a<-coxph(Surv(time, status) ~ rcs(bmi.all_time,3)*(gender)+age+medea+ smoke.all_time,
+       data = r.diagnosis.hospitalised)
+b<-coxph(Surv(time, status) ~ bmi.all_time+gender+age+medea+ smoke.all_time,
+       data = r.diagnosis.hospitalised)
+anova(a,b)
+a<-coxph(Surv(time, status) ~ rcs(bmi.all_time,3)*(gender)+age+medea+ smoke.all_time,
+       data = r.diagnosis.death)
+b<-coxph(Surv(time, status) ~ bmi.all_time+gender+age+medea+ smoke.all_time,
+       data = r.diagnosis.death)
+anova(a,b)
+a<-coxph(Surv(time, status) ~ pol(bmi.all_time,2)*(gender)+age+medea+ smoke.all_time,
+       data = r.hospitalised.death)
+b<-coxph(Surv(time, status) ~ bmi.all_time+gender+age+medea+ smoke.all_time,
+       data = r.hospitalised.death)
+anova(a,b)
+
+```
