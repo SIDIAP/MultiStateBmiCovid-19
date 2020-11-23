@@ -6,7 +6,7 @@ library(tidyr)
 library(stringr)
 library(grid)
 
-plot.data<-get(load("//epofs/apistillo/CHARYBDIS/Multistate model/plot.data.rData"))
+plot.data<-get(load("./plot.data.Rda"))
 
 plot.data<-plot.data %>% 
   mutate(trans=factor(trans,
